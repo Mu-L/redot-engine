@@ -554,7 +554,8 @@ void ShaderPreprocessor::process_else(Tokenizer *p_tokenizer) {
 	if (skip) {
 		Vector<String> ends;
 		ends.push_back("endif");
-		next_directive(p_tokenizer, ends);
+		// Legacy return value.
+		_ALLOW_DISCARD_ next_directive(p_tokenizer, ends);
 	}
 }
 
@@ -849,7 +850,8 @@ void ShaderPreprocessor::start_branch_condition(Tokenizer *p_tokenizer, bool p_s
 		ends.push_back("elif");
 		ends.push_back("else");
 		ends.push_back("endif");
-		next_directive(p_tokenizer, ends);
+		// Legacy return value.
+		_ALLOW_DISCARD_ next_directive(p_tokenizer, ends);
 	}
 }
 

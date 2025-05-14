@@ -76,7 +76,6 @@ int main(int argc, char **argv) {
 
 		if (strcmp("--embedded", argv[i]) == 0) {
 			is_embedded = true;
-			continue;
 		}
 
 		args.ptr()[argsc] = argv[i];
@@ -119,7 +118,9 @@ int main(int argc, char **argv) {
 
 	os->run();
 
+	int exit_code = os->get_exit_code();
+
 	memdelete(os);
 
-	return os->get_exit_code();
+	return exit_code;
 }

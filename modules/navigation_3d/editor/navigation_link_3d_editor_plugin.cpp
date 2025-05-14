@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  search_array.h                                                        */
+/*  navigation_link_3d_editor_plugin.cpp                                  */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             REDOT ENGINE                               */
@@ -30,37 +30,19 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#pragma once
+#include "navigation_link_3d_editor_plugin.h"
 
-#include "core/typedefs.h"
+#include "editor/plugins/node_3d_editor_plugin.h"
+#include "scene/3d/navigation/navigation_link_3d.h"
 
-template <typename T, typename Comparator = Comparator<T>>
-class SearchArray {
-public:
-	Comparator compare;
+void NavigationLink3DEditorPlugin::edit(Object *p_object) {
+}
 
-	inline int64_t bisect(const T *p_array, int64_t p_len, const T &p_value, bool p_before) const {
-		int64_t lo = 0;
-		int64_t hi = p_len;
-		if (p_before) {
-			while (lo < hi) {
-				const int64_t mid = (lo + hi) / 2;
-				if (compare(p_array[mid], p_value)) {
-					lo = mid + 1;
-				} else {
-					hi = mid;
-				}
-			}
-		} else {
-			while (lo < hi) {
-				const int64_t mid = (lo + hi) / 2;
-				if (compare(p_value, p_array[mid])) {
-					hi = mid;
-				} else {
-					lo = mid + 1;
-				}
-			}
-		}
-		return lo;
-	}
-};
+bool NavigationLink3DEditorPlugin::handles(Object *p_object) const {
+	return Object::cast_to<NavigationLink3D>(p_object) != nullptr;
+}
+
+NavigationLink3DEditorPlugin::NavigationLink3DEditorPlugin() {
+	gizmo_plugin.instantiate();
+	Node3DEditor::get_singleton()->add_gizmo_plugin(gizmo_plugin);
+}

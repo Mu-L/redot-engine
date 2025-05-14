@@ -1759,7 +1759,7 @@ Error VariantParser::_parse_tag(Token &token, Stream *p_stream, int &line, Strin
 				} else {
 					escaping = false;
 				}
-				r_tag.name += String::chr(c);
+				r_tag.name += c;
 			}
 		}
 
@@ -1904,7 +1904,7 @@ Error VariantParser::parse_tag_assign_eof(Stream *p_stream, int &line, String &r
 				what = tk.value;
 
 			} else if (c != '=') {
-				what += String::chr(c);
+				what += c;
 			} else {
 				r_assign = what;
 				Token token;

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  navigation_polygon_editor_plugin.h                                    */
+/*  camera_android.h                                                      */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             REDOT ENGINE                               */
@@ -32,66 +32,67 @@
 
 #pragma once
 
-#include "editor/plugins/abstract_polygon_2d_editor.h"
+#include "servers/camera/camera_feed.h"
+#include "servers/camera_server.h"
 
-#include "editor/plugins/editor_plugin.h"
+#include <camera/NdkCameraDevice.h>
+#include <camera/NdkCameraError.h>
+#include <camera/NdkCameraManager.h>
+#include <camera/NdkCameraMetadataTags.h>
+#include <media/NdkImageReader.h>
 
-class AcceptDialog;
-class HBoxContainer;
-class NavigationPolygon;
-class NavigationRegion2D;
+class CameraFeedAndroid : public CameraFeed {
+	GDSOFTCLASS(CameraFeedAndroid, CameraFeed);
 
-class NavigationPolygonEditor : public AbstractPolygon2DEditor {
-	friend class NavigationPolygonEditorPlugin;
+private:
+	String camera_id;
+	int32_t orientation;
+	Ref<Image> image_y;
+	Ref<Image> image_uv;
+	Vector<uint8_t> data_y;
+	Vector<uint8_t> data_uv;
 
-	GDCLASS(NavigationPolygonEditor, AbstractPolygon2DEditor);
+	ACameraManager *manager = nullptr;
+	ACameraMetadata *metadata = nullptr;
+	ACameraDevice *device = nullptr;
+	AImageReader *reader = nullptr;
+	ACameraCaptureSession *session = nullptr;
+	ACaptureRequest *request = nullptr;
 
-	NavigationRegion2D *node = nullptr;
+	void _add_formats();
+	void _set_rotation();
 
-	Ref<NavigationPolygon> _ensure_navpoly() const;
-
-	AcceptDialog *err_dialog = nullptr;
-
-	HBoxContainer *bake_hbox = nullptr;
-	Button *button_bake = nullptr;
-	Button *button_reset = nullptr;
-	Label *bake_info = nullptr;
-
-	Timer *rebake_timer = nullptr;
-	float _rebake_timer_delay = 1.5;
-	void _rebake_timer_timeout();
-
-	void _bake_pressed();
-	void _clear_pressed();
-
-	void _update_polygon_editing_state();
+	static void onError(void *context, ACameraDevice *p_device, int error);
+	static void onDisconnected(void *context, ACameraDevice *p_device);
+	static void onImage(void *context, AImageReader *p_reader);
+	static void onSessionReady(void *context, ACameraCaptureSession *session);
+	static void onSessionActive(void *context, ACameraCaptureSession *session);
+	static void onSessionClosed(void *context, ACameraCaptureSession *session);
 
 protected:
-	void _notification(int p_what);
-
-	virtual Node2D *_get_node() const override;
-	virtual void _set_node(Node *p_polygon) override;
-
-	virtual int _get_polygon_count() const override;
-	virtual Variant _get_polygon(int p_idx) const override;
-	virtual void _set_polygon(int p_idx, const Variant &p_polygon) const override;
-
-	virtual void _action_add_polygon(const Variant &p_polygon) override;
-	virtual void _action_remove_polygon(int p_idx) override;
-	virtual void _action_set_polygon(int p_idx, const Variant &p_previous, const Variant &p_polygon) override;
-
-	virtual bool _has_resource() const override;
-	virtual void _create_resource() override;
-
 public:
-	NavigationPolygonEditor();
+	bool activate_feed() override;
+	void deactivate_feed() override;
+	bool set_format(int p_index, const Dictionary &p_parameters) override;
+	Array get_formats() const override;
+	FeedFormat get_format() const override;
+
+	CameraFeedAndroid(ACameraManager *manager, ACameraMetadata *metadata, const char *id,
+			CameraFeed::FeedPosition position, int32_t orientation);
+	~CameraFeedAndroid() override;
 };
 
-class NavigationPolygonEditorPlugin : public AbstractPolygon2DEditorPlugin {
-	GDCLASS(NavigationPolygonEditorPlugin, AbstractPolygon2DEditorPlugin);
+class CameraAndroid : public CameraServer {
+	GDSOFTCLASS(CameraAndroid, CameraServer);
 
-	NavigationPolygonEditor *navigation_polygon_editor = nullptr;
+private:
+	ACameraManager *cameraManager = nullptr;
+
+	void update_feeds();
+	void remove_all_feeds();
 
 public:
-	NavigationPolygonEditorPlugin();
+	void set_monitoring_feeds(bool p_monitoring_feeds) override;
+
+	~CameraAndroid();
 };

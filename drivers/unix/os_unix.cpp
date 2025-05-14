@@ -133,6 +133,8 @@ static void _setup_clock() {
 }
 #endif
 
+struct sigaction old_action;
+
 static void handle_interrupt(int sig) {
 	if (!EngineDebugger::is_active()) {
 		return;
@@ -140,6 +142,11 @@ static void handle_interrupt(int sig) {
 
 	EngineDebugger::get_script_debugger()->set_depth(-1);
 	EngineDebugger::get_script_debugger()->set_lines_left(1);
+
+	// Ensure we call the old action if it was configured.
+	if (old_action.sa_handler && old_action.sa_handler != SIG_IGN && old_action.sa_handler != SIG_DFL) {
+		old_action.sa_handler(sig);
+	}
 }
 
 void OS_Unix::initialize_debugging() {
@@ -147,7 +154,7 @@ void OS_Unix::initialize_debugging() {
 		struct sigaction action;
 		memset(&action, 0, sizeof(action));
 		action.sa_handler = handle_interrupt;
-		sigaction(SIGINT, &action, nullptr);
+		sigaction(SIGINT, &action, &old_action);
 	}
 }
 

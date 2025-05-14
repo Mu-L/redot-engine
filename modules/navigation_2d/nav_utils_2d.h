@@ -40,7 +40,7 @@
 
 struct NavBaseIteration2D;
 
-namespace nav_2d {
+namespace Nav2D {
 struct Polygon;
 
 union PointKey {
@@ -207,4 +207,4 @@ struct PerformanceData {
 	}
 };
 
-} // namespace nav_2d
+} //namespace Nav2D
