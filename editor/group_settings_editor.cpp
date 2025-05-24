@@ -39,6 +39,7 @@
 #include "editor/gui/editor_validation_panel.h"
 #include "editor/scene_tree_dock.h"
 #include "editor/themes/editor_scale.h"
+#include "scene/gui/line_edit.h"
 #include "scene/resources/packed_scene.h"
 
 void GroupSettingsEditor::_notification(int p_what) {

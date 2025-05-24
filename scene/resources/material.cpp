@@ -648,6 +648,7 @@ void BaseMaterial3D::init_shaders() {
 	shader_names->texture_names[TEXTURE_ROUGHNESS] = "texture_roughness";
 	shader_names->texture_names[TEXTURE_EMISSION] = "texture_emission";
 	shader_names->texture_names[TEXTURE_NORMAL] = "texture_normal";
+	shader_names->texture_names[TEXTURE_BENT_NORMAL] = "texture_bent_normal";
 	shader_names->texture_names[TEXTURE_RIM] = "texture_rim";
 	shader_names->texture_names[TEXTURE_CLEARCOAT] = "texture_clearcoat";
 	shader_names->texture_names[TEXTURE_FLOWMAP] = "texture_flowmap";
@@ -667,6 +668,8 @@ void BaseMaterial3D::init_shaders() {
 
 	shader_names->alpha_antialiasing_edge = "alpha_antialiasing_edge";
 	shader_names->albedo_texture_size = "albedo_texture_size";
+	shader_names->z_clip_scale = "z_clip_scale";
+	shader_names->fov_override = "fov_override";
 }
 
 HashMap<uint64_t, Ref<StandardMaterial3D>> BaseMaterial3D::materials_for_2d;
@@ -875,7 +878,9 @@ void BaseMaterial3D::_update_shader() {
 	if (flags[FLAG_DISABLE_FOG]) {
 		code += ", fog_disabled";
 	}
-
+	if (flags[FLAG_DISABLE_SPECULAR_OCCLUSION]) {
+		code += ", specular_occlusion_disabled";
+	}
 	if (transparency == TRANSPARENCY_ALPHA_DEPTH_PRE_PASS) {
 		code += ", depth_prepass_alpha";
 	}
@@ -1025,6 +1030,12 @@ uniform float normal_scale : hint_range(-16.0, 16.0);
 )",
 				texfilter_str);
 	}
+	if (features[FEATURE_BENT_NORMAL_MAPPING]) {
+		code += vformat(R"(
+uniform sampler2D texture_bent_normal : hint_roughness_normal, %s;
+)",
+				texfilter_str);
+	}
 	if (features[FEATURE_RIM]) {
 		code += vformat(R"(
 uniform float rim : hint_range(0.0, 1.0, 0.01);
@@ -1127,6 +1138,14 @@ uniform vec3 uv1_offset;
 uniform vec3 uv2_scale;
 uniform vec3 uv2_offset;
 )";
+
+	if (flags[FLAG_USE_Z_CLIP_SCALE]) {
+		code += "uniform float z_clip_scale : hint_range(0.01, 1.0, 0.01);\n";
+	}
+
+	if (flags[FLAG_USE_FOV_OVERRIDE]) {
+		code += "uniform float fov_override : hint_range(1.0, 179.0, 0.1);\n";
+	}
 
 	// Generate vertex shader.
 	code += R"(
@@ -1371,6 +1390,25 @@ void vertex() {)";
 )";
 	}
 
+	if (flags[FLAG_USE_Z_CLIP_SCALE]) {
+		code += R"(
+	Z_CLIP_SCALE = z_clip_scale;
+)";
+	}
+
+	if (flags[FLAG_USE_FOV_OVERRIDE]) {
+		code += R"(
+	if (!IN_SHADOW_PASS) {
+		float flip_y = sign(PROJECTION_MATRIX[1][1]);
+		float aspect = PROJECTION_MATRIX[1][1] / PROJECTION_MATRIX[0][0];
+		float f = flip_y / tan(fov_override * PI / 360.0);
+		PROJECTION_MATRIX[0][0] = f / aspect;
+		PROJECTION_MATRIX[1][1] = f;
+	}
+)";
+	}
+
+	// End of the vertex shader function.
 	code += "}\n";
 
 	if (flags[FLAG_ALBEDO_TEXTURE_MSDF] && !flags[FLAG_UV1_USE_TRIPLANAR]) {
@@ -1639,6 +1677,13 @@ void fragment() {)";
 			code += "	NORMAL_MAP = texture(texture_normal, base_uv).rgb;\n";
 		}
 		code += "	NORMAL_MAP_DEPTH = normal_scale;\n";
+	}
+
+	if (features[FEATURE_BENT_NORMAL_MAPPING]) {
+		code += R"(
+	// Bent Normal Map: Enabled
+	BENT_NORMAL_MAP = texture(texture_bent_normal, base_uv).rgb;
+)";
 	}
 
 	if (features[FEATURE_EMISSION]) {
@@ -2361,7 +2406,9 @@ void BaseMaterial3D::set_flag(Flags p_flag, bool p_enabled) {
 			p_flag == FLAG_SUBSURFACE_MODE_SKIN ||
 			p_flag == FLAG_USE_POINT_SIZE ||
 			p_flag == FLAG_UV1_USE_TRIPLANAR ||
-			p_flag == FLAG_UV2_USE_TRIPLANAR) {
+			p_flag == FLAG_UV2_USE_TRIPLANAR ||
+			p_flag == FLAG_USE_Z_CLIP_SCALE ||
+			p_flag == FLAG_USE_FOV_OVERRIDE) {
 		notify_property_list_changed();
 	}
 
@@ -2440,6 +2487,7 @@ void BaseMaterial3D::_validate_feature(const String &text, Feature feature, Prop
 
 void BaseMaterial3D::_validate_property(PropertyInfo &p_property) const {
 	_validate_feature("normal", FEATURE_NORMAL_MAPPING, p_property);
+	_validate_feature("bent_normal", FEATURE_BENT_NORMAL_MAPPING, p_property);
 	_validate_feature("emission", FEATURE_EMISSION, p_property);
 	_validate_feature("rim", FEATURE_RIM, p_property);
 	_validate_feature("clearcoat", FEATURE_CLEARCOAT, p_property);
@@ -2492,6 +2540,14 @@ void BaseMaterial3D::_validate_property(PropertyInfo &p_property) const {
 	}
 
 	if ((p_property.name == "uv2_triplanar_sharpness" || p_property.name == "uv2_world_triplanar") && !flags[FLAG_UV2_USE_TRIPLANAR]) {
+		p_property.usage = PROPERTY_USAGE_NO_EDITOR;
+	}
+
+	if (p_property.name == "z_clip_scale" && !flags[FLAG_USE_Z_CLIP_SCALE]) {
+		p_property.usage = PROPERTY_USAGE_NO_EDITOR;
+	}
+
+	if (p_property.name == "fov_override" && !flags[FLAG_USE_FOV_OVERRIDE]) {
 		p_property.usage = PROPERTY_USAGE_NO_EDITOR;
 	}
 
@@ -2582,6 +2638,10 @@ void BaseMaterial3D::_validate_property(PropertyInfo &p_property) const {
 		}
 
 		if (p_property.name.begins_with("normal")) {
+			p_property.usage = PROPERTY_USAGE_NONE;
+		}
+
+		if (p_property.name.begins_with("bent_normal")) {
 			p_property.usage = PROPERTY_USAGE_NONE;
 		}
 
@@ -2839,6 +2899,24 @@ void BaseMaterial3D::set_refraction_texture_channel(TextureChannel p_channel) {
 
 BaseMaterial3D::TextureChannel BaseMaterial3D::get_refraction_texture_channel() const {
 	return refraction_texture_channel;
+}
+
+void BaseMaterial3D::set_z_clip_scale(float p_z_clip_scale) {
+	z_clip_scale = p_z_clip_scale;
+	_material_set_param(shader_names->z_clip_scale, p_z_clip_scale);
+}
+
+float BaseMaterial3D::get_z_clip_scale() const {
+	return z_clip_scale;
+}
+
+void BaseMaterial3D::set_fov_override(float p_fov_override) {
+	fov_override = p_fov_override;
+	_material_set_param(shader_names->fov_override, p_fov_override);
+}
+
+float BaseMaterial3D::get_fov_override() const {
+	return fov_override;
 }
 
 Ref<Material> BaseMaterial3D::get_material_for_2d(bool p_shaded, Transparency p_transparency, bool p_double_sided, bool p_billboard, bool p_billboard_y, bool p_msdf, bool p_no_depth, bool p_fixed_size, TextureFilter p_filter, AlphaAntiAliasing p_alpha_antialiasing_mode, RID *r_shader_rid) {
@@ -3193,6 +3271,12 @@ void BaseMaterial3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_distance_fade_min_distance", "distance"), &BaseMaterial3D::set_distance_fade_min_distance);
 	ClassDB::bind_method(D_METHOD("get_distance_fade_min_distance"), &BaseMaterial3D::get_distance_fade_min_distance);
 
+	ClassDB::bind_method(D_METHOD("set_z_clip_scale", "scale"), &BaseMaterial3D::set_z_clip_scale);
+	ClassDB::bind_method(D_METHOD("get_z_clip_scale"), &BaseMaterial3D::get_z_clip_scale);
+
+	ClassDB::bind_method(D_METHOD("set_fov_override", "scale"), &BaseMaterial3D::set_fov_override);
+	ClassDB::bind_method(D_METHOD("get_fov_override"), &BaseMaterial3D::get_fov_override);
+
 	ADD_GROUP("Transparency", "");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "transparency", PROPERTY_HINT_ENUM, "Disabled,Alpha,Alpha Scissor,Alpha Hash,Depth Pre-Pass"), "set_transparency", "get_transparency");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "alpha_scissor_threshold", PROPERTY_HINT_RANGE, "0,1,0.001"), "set_alpha_scissor_threshold", "get_alpha_scissor_threshold");
@@ -3210,6 +3294,7 @@ void BaseMaterial3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "specular_mode", PROPERTY_HINT_ENUM, "SchlickGGX,Toon,Disabled"), "set_specular_mode", "get_specular_mode");
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "disable_ambient_light"), "set_flag", "get_flag", FLAG_DISABLE_AMBIENT_LIGHT);
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "disable_fog"), "set_flag", "get_flag", FLAG_DISABLE_FOG);
+	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "disable_specular_occlusion"), "set_flag", "get_flag", FLAG_DISABLE_SPECULAR_OCCLUSION);
 
 	ADD_GROUP("Vertex Color", "vertex_color");
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "vertex_color_use_as_albedo"), "set_flag", "get_flag", FLAG_ALBEDO_FROM_VERTEX_COLOR);
@@ -3249,6 +3334,10 @@ void BaseMaterial3D::_bind_methods() {
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "normal_enabled", PROPERTY_HINT_GROUP_ENABLE), "set_feature", "get_feature", FEATURE_NORMAL_MAPPING);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "normal_scale", PROPERTY_HINT_RANGE, "-16,16,0.01"), "set_normal_scale", "get_normal_scale");
 	ADD_PROPERTYI(PropertyInfo(Variant::OBJECT, "normal_texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D"), "set_texture", "get_texture", TEXTURE_NORMAL);
+
+	ADD_GROUP("Bent Normal Map", "bent_normal_");
+	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "bent_normal_enabled", PROPERTY_HINT_GROUP_ENABLE), "set_feature", "get_feature", FEATURE_BENT_NORMAL_MAPPING);
+	ADD_PROPERTYI(PropertyInfo(Variant::OBJECT, "bent_normal_texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D"), "set_texture", "get_texture", TEXTURE_BENT_NORMAL);
 
 	ADD_GROUP("Rim", "rim_");
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "rim_enabled", PROPERTY_HINT_GROUP_ENABLE), "set_feature", "get_feature", FEATURE_RIM);
@@ -3357,7 +3446,10 @@ void BaseMaterial3D::_bind_methods() {
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "use_point_size"), "set_flag", "get_flag", FLAG_USE_POINT_SIZE);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "point_size", PROPERTY_HINT_RANGE, "0.1,128,0.1,suffix:px"), "set_point_size", "get_point_size");
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "use_particle_trails"), "set_flag", "get_flag", FLAG_PARTICLE_TRAILS_MODE);
-
+	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "use_z_clip_scale"), "set_flag", "get_flag", FLAG_USE_Z_CLIP_SCALE);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "z_clip_scale", PROPERTY_HINT_RANGE, "0.01,1.0,0.01"), "set_z_clip_scale", "get_z_clip_scale");
+	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "use_fov_override"), "set_flag", "get_flag", FLAG_USE_FOV_OVERRIDE);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fov_override", PROPERTY_HINT_RANGE, "1,179,0.1,degrees"), "set_fov_override", "get_fov_override");
 	ADD_GROUP("Proximity Fade", "proximity_fade_");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "proximity_fade_enabled"), "set_proximity_fade_enabled", "is_proximity_fade_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "proximity_fade_distance", PROPERTY_HINT_RANGE, "0.01,4096,0.01,suffix:m"), "set_proximity_fade_distance", "get_proximity_fade_distance");
@@ -3376,6 +3468,7 @@ void BaseMaterial3D::_bind_methods() {
 	BIND_ENUM_CONSTANT(TEXTURE_ROUGHNESS);
 	BIND_ENUM_CONSTANT(TEXTURE_EMISSION);
 	BIND_ENUM_CONSTANT(TEXTURE_NORMAL);
+	BIND_ENUM_CONSTANT(TEXTURE_BENT_NORMAL);
 	BIND_ENUM_CONSTANT(TEXTURE_RIM);
 	BIND_ENUM_CONSTANT(TEXTURE_CLEARCOAT);
 	BIND_ENUM_CONSTANT(TEXTURE_FLOWMAP);
@@ -3426,6 +3519,7 @@ void BaseMaterial3D::_bind_methods() {
 	BIND_ENUM_CONSTANT(FEATURE_BACKLIGHT);
 	BIND_ENUM_CONSTANT(FEATURE_REFRACTION);
 	BIND_ENUM_CONSTANT(FEATURE_DETAIL);
+	BIND_ENUM_CONSTANT(FEATURE_BENT_NORMAL_MAPPING);
 	BIND_ENUM_CONSTANT(FEATURE_MAX);
 
 	BIND_ENUM_CONSTANT(BLEND_MODE_MIX);
@@ -3468,6 +3562,9 @@ void BaseMaterial3D::_bind_methods() {
 	BIND_ENUM_CONSTANT(FLAG_PARTICLE_TRAILS_MODE);
 	BIND_ENUM_CONSTANT(FLAG_ALBEDO_TEXTURE_MSDF);
 	BIND_ENUM_CONSTANT(FLAG_DISABLE_FOG);
+	BIND_ENUM_CONSTANT(FLAG_DISABLE_SPECULAR_OCCLUSION);
+	BIND_ENUM_CONSTANT(FLAG_USE_Z_CLIP_SCALE);
+	BIND_ENUM_CONSTANT(FLAG_USE_FOV_OVERRIDE);
 	BIND_ENUM_CONSTANT(FLAG_MAX);
 
 	BIND_ENUM_CONSTANT(DIFFUSE_BURLEY);
@@ -3561,6 +3658,9 @@ BaseMaterial3D::BaseMaterial3D(bool p_orm) :
 	set_heightmap_deep_parallax_min_layers(8);
 	set_heightmap_deep_parallax_max_layers(32);
 	set_heightmap_deep_parallax_flip_tangent(false); //also sets binormal
+
+	set_z_clip_scale(1.0);
+	set_fov_override(75.0);
 
 	flags[FLAG_ALBEDO_TEXTURE_MSDF] = false;
 	flags[FLAG_USE_TEXTURE_REPEAT] = true;

@@ -647,7 +647,11 @@ if env["scu_build"]:
 # are actually handled to change compile options, etc.
 detect.configure(env)
 
-print(f'Building for platform "{env["platform"]}", architecture "{env["arch"]}", target "{env["target"]}".')
+platform_string = env["platform"]
+if env.get("simulator"):
+    platform_string += " (simulator)"
+print(f'Building for platform "{platform_string}", architecture "{env["arch"]}", target "{env["target"]}".')
+
 if env.dev_build:
     print_info("Developer build, with debug optimization level and debug symbols (unless overridden).")
 
@@ -869,6 +873,7 @@ if env.msvc and not methods.using_clang(env):  # MSVC
         "/wd4514",  # C4514 (unreferenced inline function has been removed)
         "/wd4714",  # C4714 (function marked as __forceinline not inlined)
         "/wd4820",  # C4820 (padding added after construct)
+        "/wd4611",  # C4611 (interaction between '_setjmp' and C++ object destruction is non-portable): libpng uses setjmp use for error handling
     ]
 
     if env["warnings"] == "extra":

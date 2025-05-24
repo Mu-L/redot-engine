@@ -200,7 +200,7 @@ License: BSD-3-clause
 
 Files: thirdparty/astcenc/*
 Comment: Arm ASTC Encoder
-Copyright: 2011-2024, Arm Limited
+Copyright: 2011-2025, Arm Limited
 License: Apache-2.0
 
 Files: thirdparty/basis_universal/*
@@ -284,6 +284,11 @@ Comment: The FreeType Project
 Copyright: 1996-2023, David Turner, Robert Wilhelm, and Werner Lemberg.
 License: FTL
 
+Files: thirdparty/giflib/*
+Comment: giflib
+Copyright: 1997-2024, Eric S. Raymond
+License: Expat
+
 Files: thirdparty/glad/*
 Comment: glad
 Copyright: 2013-2022, David Herberth
@@ -301,6 +306,12 @@ Files: thirdparty/graphite/*
 Comment: Graphite engine
 Copyright: 2010, SIL International
 License: Expat
+
+Files: thirdparty/grisu2/grisu2.h
+Comment: Grisu2 float serialization algorithm
+Copyright: 2009, Florian Loitsch
+ 2018-2023, The simdjson authors
+License: Expat and Apache
 
 Files: thirdparty/harfbuzz/*
 Comment: HarfBuzz text shaping library

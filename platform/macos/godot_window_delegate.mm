@@ -37,15 +37,25 @@
 #import "godot_content_view.h"
 #import "godot_window.h"
 
-@implementation GodotWindowDelegate
+@implementation GodotWindowDelegate {
+	DisplayServer::WindowID window_id;
+	DisplayServerMacOS *ds;
+}
+
+- (instancetype)initWithDisplayServer:(DisplayServerMacOS *)p_ds {
+	if (self = [super init]) {
+		ds = p_ds;
+		window_id = DisplayServerMacOS::INVALID_WINDOW_ID;
+	}
+	return self;
+}
 
 - (void)setWindowID:(DisplayServer::WindowID)wid {
 	window_id = wid;
 }
 
 - (BOOL)windowShouldClose:(id)sender {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return YES;
 	}
 
@@ -54,8 +64,7 @@
 }
 
 - (void)windowWillClose:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -75,8 +84,7 @@
 }
 
 - (void)windowWillEnterFullScreen:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -93,8 +101,7 @@
 }
 
 - (void)windowDidFailToEnterFullScreen:(NSWindow *)window {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -103,8 +110,7 @@
 }
 
 - (void)windowDidEnterFullScreen:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -128,8 +134,7 @@
 }
 
 - (void)windowWillExitFullScreen:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -145,8 +150,7 @@
 }
 
 - (void)windowDidFailToExitFullScreen:(NSWindow *)window {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -161,8 +165,7 @@
 }
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -208,8 +211,7 @@
 }
 
 - (void)windowDidChangeBackingProperties:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -239,8 +241,7 @@
 }
 
 - (void)windowWillStartLiveResize:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (ds && ds->has_window(window_id)) {
+	if (ds->has_window(window_id)) {
 		DisplayServerMacOS::WindowData &wd = ds->get_window(window_id);
 		wd.last_frame_rect = [wd.window_object frame];
 		ds->set_is_resizing(true);
@@ -248,15 +249,11 @@
 }
 
 - (void)windowDidEndLiveResize:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (ds) {
-		ds->set_is_resizing(false);
-	}
+	ds->set_is_resizing(false);
 }
 
 - (void)windowDidResize:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -279,8 +276,7 @@
 }
 
 - (void)windowDidChangeScreen:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -288,8 +284,7 @@
 }
 
 - (void)windowDidMove:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -302,8 +297,7 @@
 }
 
 - (void)windowDidBecomeKey:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -334,8 +328,7 @@
 }
 
 - (void)windowDidResignKey:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -354,8 +347,7 @@
 }
 
 - (void)windowDidMiniaturize:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -370,8 +362,7 @@
 }
 
 - (void)windowDidDeminiaturize:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 
@@ -388,8 +379,7 @@
 }
 
 - (void)windowDidChangeOcclusionState:(NSNotification *)notification {
-	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
-	if (!ds || !ds->has_window(window_id)) {
+	if (!ds->has_window(window_id)) {
 		return;
 	}
 	DisplayServerMacOS::WindowData &wd = ds->get_window(window_id);

@@ -605,6 +605,7 @@ class EditorInspector : public ScrollContainer {
 	bool keying = false;
 	bool wide_editors = false;
 	bool deletable_properties = false;
+	bool mark_unsaved = true;
 
 	float refresh_countdown;
 	bool update_tree_pending = false;
@@ -705,6 +706,7 @@ public:
 
 	void set_keying(bool p_active);
 	void set_read_only(bool p_read_only);
+	void set_mark_unsaved(bool p_mark) { mark_unsaved = p_mark; }
 
 	EditorPropertyNameProcessor::Style get_property_name_style() const;
 	void set_property_name_style(EditorPropertyNameProcessor::Style p_style);

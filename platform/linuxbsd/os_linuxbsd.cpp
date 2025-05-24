@@ -1199,6 +1199,7 @@ String OS_LinuxBSD::get_system_ca_certificates() {
 	return f->get_as_text();
 }
 
+#ifdef TOOLS_ENABLED
 bool OS_LinuxBSD::_test_create_rendering_device(const String &p_display_driver) const {
 	// Tests Rendering Device creation.
 
@@ -1265,6 +1266,7 @@ bool OS_LinuxBSD::_test_create_rendering_device_and_gl(const String &p_display_d
 #endif
 	return _test_create_rendering_device(p_display_driver);
 }
+#endif
 
 OS_LinuxBSD::OS_LinuxBSD() {
 	main_loop = nullptr;

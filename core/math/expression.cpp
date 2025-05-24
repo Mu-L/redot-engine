@@ -410,7 +410,7 @@ Error Expression::_get_token(Token &r_token) {
 						if (reading == READING_DONE) {
 							break;
 						}
-						num += String::chr(c);
+						num += c;
 						c = GET_CHAR();
 						is_first_char = false;
 					}
@@ -437,7 +437,7 @@ Error Expression::_get_token(Token &r_token) {
 					cchar = GET_CHAR();
 
 					while (is_unicode_identifier_continue(cchar)) {
-						id += String::chr(cchar);
+						id += cchar;
 						cchar = GET_CHAR();
 					}
 

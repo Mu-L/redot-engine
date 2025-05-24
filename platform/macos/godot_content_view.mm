@@ -70,6 +70,10 @@
 
 @implementation GodotContentView
 
+- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+	return YES;
+}
+
 - (void)setFrameSize:(NSSize)newSize {
 	DisplayServerMacOS *ds = (DisplayServerMacOS *)DisplayServer::get_singleton();
 	if (ds && ds->has_window(window_id)) {

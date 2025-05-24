@@ -166,13 +166,11 @@ void EditorStandardSyntaxHighlighter::_update_cache() {
 		/* Reserved words. */
 		const Color keyword_color = EDITOR_GET("text_editor/theme/highlighting/keyword_color");
 		const Color control_flow_keyword_color = EDITOR_GET("text_editor/theme/highlighting/control_flow_keyword_color");
-		List<String> keywords;
-		scr_lang->get_reserved_words(&keywords);
-		for (const String &E : keywords) {
-			if (scr_lang->is_control_flow_keyword(E)) {
-				highlighter->add_keyword_color(E, control_flow_keyword_color);
+		for (const String &keyword : scr_lang->get_reserved_words()) {
+			if (scr_lang->is_control_flow_keyword(keyword)) {
+				highlighter->add_keyword_color(keyword, control_flow_keyword_color);
 			} else {
-				highlighter->add_keyword_color(E, keyword_color);
+				highlighter->add_keyword_color(keyword, keyword_color);
 			}
 		}
 
@@ -201,9 +199,7 @@ void EditorStandardSyntaxHighlighter::_update_cache() {
 
 		/* Comments */
 		const Color comment_color = EDITOR_GET("text_editor/theme/highlighting/comment_color");
-		List<String> comments;
-		scr_lang->get_comment_delimiters(&comments);
-		for (const String &comment : comments) {
+		for (const String &comment : scr_lang->get_comment_delimiters()) {
 			String beg = comment.get_slicec(' ', 0);
 			String end = comment.get_slice_count(" ") > 1 ? comment.get_slicec(' ', 1) : String();
 			highlighter->add_color_region(beg, end, comment_color, end.is_empty());
@@ -211,9 +207,7 @@ void EditorStandardSyntaxHighlighter::_update_cache() {
 
 		/* Doc comments */
 		const Color doc_comment_color = EDITOR_GET("text_editor/theme/highlighting/doc_comment_color");
-		List<String> doc_comments;
-		scr_lang->get_doc_comment_delimiters(&doc_comments);
-		for (const String &doc_comment : doc_comments) {
+		for (const String &doc_comment : scr_lang->get_doc_comment_delimiters()) {
 			String beg = doc_comment.get_slicec(' ', 0);
 			String end = doc_comment.get_slice_count(" ") > 1 ? doc_comment.get_slicec(' ', 1) : String();
 			highlighter->add_color_region(beg, end, doc_comment_color, end.is_empty());
@@ -221,9 +215,7 @@ void EditorStandardSyntaxHighlighter::_update_cache() {
 
 		/* Strings */
 		const Color string_color = EDITOR_GET("text_editor/theme/highlighting/string_color");
-		List<String> strings;
-		scr_lang->get_string_delimiters(&strings);
-		for (const String &string : strings) {
+		for (const String &string : scr_lang->get_string_delimiters()) {
 			String beg = string.get_slicec(' ', 0);
 			String end = string.get_slice_count(" ") > 1 ? string.get_slicec(' ', 1) : String();
 			highlighter->add_color_region(beg, end, string_color, end.is_empty());
@@ -1101,6 +1093,17 @@ void ScriptEditor::_mark_built_in_scripts_as_saved(const String &p_parent_path) 
 
 void ScriptEditor::trigger_live_script_reload(const String &p_script_path) {
 	if (!script_paths_to_reload.has(p_script_path)) {
+		Ref<Script> reloaded_script = ResourceCache::get_ref(p_script_path);
+		if (reloaded_script.is_null()) {
+			reloaded_script = ResourceLoader::load(p_script_path);
+		}
+		if (reloaded_script.is_valid()) {
+			if (!reloaded_script->get_language()->validate(reloaded_script->get_source_code(), p_script_path)) {
+				// Script has errors, don't live reload.
+				return;
+			}
+		}
+
 		script_paths_to_reload.append(p_script_path);
 	}
 	if (!pending_auto_reload && auto_reload_running_scripts) {
@@ -1798,15 +1801,6 @@ void ScriptEditor::_notification(int p_what) {
 			_test_script_times_on_disk();
 			_update_modified_scripts_for_external_editor();
 		} break;
-	}
-}
-
-bool ScriptEditor::can_take_away_focus() const {
-	ScriptEditorBase *current = _get_current_editor();
-	if (current) {
-		return current->can_lose_focus_on_node_selection();
-	} else {
-		return true;
 	}
 }
 
@@ -2627,7 +2621,8 @@ bool ScriptEditor::edit(const Ref<Resource> &p_resource, int p_line, int p_col, 
 	CodeTextEditor *cte = se->get_code_editor();
 	if (cte) {
 		cte->set_zoom_factor(zoom_factor);
-		cte->connect("zoomed", callable_mp(this, &ScriptEditor::_set_zoom_factor));
+		cte->connect("zoomed", callable_mp(this, &ScriptEditor::_set_script_zoom_factor));
+		cte->connect(SceneStringName(visibility_changed), callable_mp(this, &ScriptEditor::_update_code_editor_zoom_factor).bind(cte));
 	}
 
 	//test for modification, maybe the script was not edited but was loaded
@@ -3560,7 +3555,7 @@ void ScriptEditor::set_window_layout(Ref<ConfigFile> p_layout) {
 		}
 	}
 
-	_set_zoom_factor(p_layout->get_value("ScriptEditor", "zoom_factor", 1.0f));
+	_set_script_zoom_factor(p_layout->get_value("ScriptEditor", "zoom_factor", 1.0f));
 
 	restoring_layout = false;
 
@@ -4059,21 +4054,17 @@ void ScriptEditor::_on_find_in_files_modified_files(const PackedStringArray &pat
 	_update_modified_scripts_for_external_editor();
 }
 
-void ScriptEditor::_set_zoom_factor(float p_zoom_factor) {
+void ScriptEditor::_set_script_zoom_factor(float p_zoom_factor) {
 	if (zoom_factor == p_zoom_factor) {
 		return;
 	}
+
 	zoom_factor = p_zoom_factor;
-	for (int i = 0; i < tab_container->get_tab_count(); i++) {
-		ScriptEditorBase *se = Object::cast_to<ScriptEditorBase>(tab_container->get_tab_control(i));
-		if (se) {
-			CodeTextEditor *cte = se->get_code_editor();
-			if (cte) {
-				if (zoom_factor != cte->get_zoom_factor()) {
-					cte->set_zoom_factor(zoom_factor);
-				}
-			}
-		}
+}
+
+void ScriptEditor::_update_code_editor_zoom_factor(CodeTextEditor *p_code_text_editor) {
+	if (p_code_text_editor && p_code_text_editor->is_visible_in_tree() && zoom_factor != p_code_text_editor->get_zoom_factor()) {
+		p_code_text_editor->set_zoom_factor(zoom_factor);
 	}
 }
 

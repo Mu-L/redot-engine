@@ -32,6 +32,8 @@
 
 #include "test_main.h"
 
+#include "core/error/error_macros.h"
+#include "core/io/dir_access.h"
 #include "modules/modules_enabled.gen.h"
 
 #ifdef TOOLS_ENABLED
@@ -48,6 +50,7 @@
 #include "tests/core/io/test_file_access.h"
 #include "tests/core/io/test_http_client.h"
 #include "tests/core/io/test_image.h"
+#include "tests/core/io/test_image_frames.h"
 #include "tests/core/io/test_ip.h"
 #include "tests/core/io/test_json.h"
 #include "tests/core/io/test_json_native.h"
@@ -108,6 +111,7 @@
 #include "tests/core/templates/test_rid.h"
 #include "tests/core/templates/test_span.h"
 #include "tests/core/templates/test_vector.h"
+#include "tests/core/templates/test_vset.h"
 #include "tests/core/test_crypto.h"
 #include "tests/core/test_hashing_context.h"
 #include "tests/core/test_time.h"
@@ -232,6 +236,15 @@ int test_main(int argc, char *argv[]) {
 	DisplayServerMock::register_mock_driver();
 
 	WorkerThreadPool::get_singleton()->init();
+
+	String test_path = OS::get_singleton()->get_cache_path().path_join("godot_test");
+
+	Ref<DirAccess> da;
+	if (DirAccess::exists(test_path)) {
+		da = DirAccess::open(test_path);
+		ERR_FAIL_COND_V(da.is_null(), 0);
+		ERR_FAIL_COND_V_MSG(da->erase_contents_recursive() != OK, 0, "Failed to delete files");
+	}
 
 	// Run custom test tools.
 	if (test_commands) {
